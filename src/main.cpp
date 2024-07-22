@@ -1,5 +1,5 @@
-#include <iostream>
 #include "votingSystem.h"
+
 
 int main() {
     displayWelcomeMessage();

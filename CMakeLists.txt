@@ -13,22 +13,32 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 # Add source files
 file(GLOB SOURCES "src/*.cpp")
 
-# Find required packages
-find_package(OpenSSL REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system filesystem)
-find_package(MySQL REQUIRED)
-# Uncomment below if you're using PostgreSQL or SQLite instead of MySQL
-# find_package(PostgreSQL REQUIRED)
-# find_package(SQLite3 REQUIRED)
+# Include FetchContent module
+include(FetchContent)
+
+# Fetch libpqxx
+FetchContent_Declare(
+        libpqxx
+        GIT_REPOSITORY https://github.com/jtv/libpqxx.git
+        GIT_TAG        7.6.0
+)
+
+# Make libpqxx available
+FetchContent_MakeAvailable(libpqxx)
 
 # Add the executable
-add_executable(OnlineVotingSystem ${SOURCES})
+add_executable(OnlineVotingSystem ${SOURCES}
+        include/crudOperations.h
+        src/DatabaseManagements/crudOperations.cpp)
+
+# Find PostgreSQL package
+find_package(PostgreSQL REQUIRED)
 
 # Link libraries
-target_link_libraries(OnlineVotingSystem OpenSSL::SSL OpenSSL::Crypto Boost::system Boost::filesystem ${MYSQL_LIBRARIES})
-# Uncomment below if you're using PostgreSQL or SQLite instead of MySQL
-# target_link_libraries(OnlineVotingSystem PostgreSQL::PostgreSQL)
-# target_link_libraries(OnlineVotingSystem SQLite::SQLite3)
+target_link_libraries(OnlineVotingSystem PRIVATE pqxx pq ${PostgreSQL_LIBRARIES})
+
+# Ensure the PostgreSQL include directory is found
+include_directories(${PostgreSQL_INCLUDE_DIRS})
 
 # Installation
 install(TARGETS OnlineVotingSystem DESTINATION bin)

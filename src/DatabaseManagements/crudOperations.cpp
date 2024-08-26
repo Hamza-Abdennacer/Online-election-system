@@ -2,102 +2,63 @@
 // Created by abdennacer on 22/07/24.
 //
 #include "crudOperations.h"
-#include <iostream>
 #include <pqxx/pqxx>
+#include <string>
+#include "laserpants/dotenv/dotenv.h"
+#include <fmt/core.h>
+#include "votingSystem.h"
 
 namespace database_operations {
-    // Helper function to join columns or clauses
-    std::string join(const std::vector<std::string> &elements, const std::string &delimiter) {
-        std::string result;
-        for (size_t i = 0; i < elements.size(); ++i) {
-            if (i > 0) result += delimiter;
-            result += elements[i];
-        }
-        return result;
+    void database_manager::connect_to_database() {
+        database_connection_ = std::make_unique<pqxx::connection>(pqxx::connection(get_url_connection()));
     }
 
-    // Helper function to join values
-    template <typename... Args>
-    std::string joinValues(const std::tuple<Args...> &values) {
-        std::string result;
-        std::apply([&result](const auto &... args) {
-            std::string delimiter;
-            ((result += delimiter + pqxx::work::quote(args), delimiter = ", "), ...);
-        }, values);
-        return result;
+    database_manager::database_manager() {
+        connect_to_database();
     }
 
-    void createRecord(pqxx::connection &c, const std::string &table, const std::vector<std::string> &columns, const std::tuple<int, std::string, std::string> &values) {
+    void database_manager::execute_query_with_transaction(const std::string& query) const {
         try {
-            pqxx::work txn(c);
-            std::string columns_str = join(columns, ", ");
-            std::string values_str = joinValues(values);
-            std::string sql = "INSERT INTO " + table + " (" + columns_str + ") VALUES (" + values_str + ");";
-            txn.exec(sql);
-            txn.commit();
-            std::cout << "Record inserted successfully into " << table << "." << std::endl;
-        }
-        catch (const pqxx::sql_error &e) {
-            std::cerr << "SQL Error: " << e.what() << std::endl;
-            std::cerr << "Query was: " << e.query() << std::endl;
-        }
-        catch (const std::exception &e) {
-            std::cerr << "Error: " << e.what() << std::endl;
+            pqxx::work transaction(*database_connection_);
+            (void)transaction.exec(query);
+        } catch (const std::exception &e) {
+            std::cerr << "Error executing query: " << e.what() << std::endl;
         }
     }
-
-    void readRecords(pqxx::connection &c, const std::string &table) {
+    pqxx::result database_manager::execute_query_without_transaction(const std::string& query) const{
+        pqxx::result rows;
         try {
-            pqxx::nontransaction txn(c);
-            std::string sql = "SELECT * FROM " + table + ";";
-            pqxx::result res = txn.exec(sql);
-            for (auto row : res) {
-                for (auto field : row) {
-                    std::cout << field.c_str() << " ";
-                }
-                std::cout << std::endl;
-            }
+            pqxx::nontransaction non_txn(*database_connection_);
+            rows = non_txn.exec(query);
+        } catch (const std::exception &e) {
+            std::cerr << "Error executing query: " << e.what() << std::endl;
         }
-        catch (const pqxx::sql_error &e) {
-            std::cerr << "SQL Error: " << e.what() << std::endl;
-        }
-        catch (const std::exception &e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
+        return rows;
     }
 
-    void updateRecord(pqxx::connection &c, const std::string &table, const std::vector<std::string> &set_clauses, const std::string &condition) {
-        try {
-            pqxx::work txn(c);
-            std::string set_clause_str = join(set_clauses, ", ");
-            std::string sql = "UPDATE " + table + " SET " + set_clause_str + " WHERE " + condition + ";";
-            txn.exec(sql);
-            txn.commit();
-            std::cout << "Record updated successfully in " << table << "." << std::endl;
-        }
-        catch (const pqxx::sql_error &e) {
-            std::cerr << "SQL Error: " << e.what() << std::endl;
-            std::cerr << "Query was: " << e.query() << std::endl;
-        }
-        catch (const std::exception &e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
+    // Getter for the connection
+    pqxx::connection* database_manager::get_connection() const {
+        return database_connection_.get();
     }
 
-    void deleteRecord(pqxx::connection &c, const std::string &table, const std::string &condition) {
-        try {
-            pqxx::work txn(c);
-            std::string sql = "DELETE FROM " + table + " WHERE " + condition + ";";
-            txn.exec(sql);
-            txn.commit();
-            std::cout << "Record deleted successfully from " << table << "." << std::endl;
-        }
-        catch (const pqxx::sql_error &e) {
-            std::cerr << "SQL Error: " << e.what() << std::endl;
-            std::cerr << "Query was: " << e.query() << std::endl;
-        }
-        catch (const std::exception &e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
+
+    std::string get_url_connection() {
+        // Load the .env file
+        dotenv::init("../.env");
+        std::string db_user = dotenv::getenv("DB_USER");
+        std::string db_password = dotenv::getenv("DB_PASSWORD");
+        std::string db_host = dotenv::getenv("DB_HOST");
+        std::string db_port = dotenv::getenv("DB_PORT");
+        std::string db_name = dotenv::getenv("DB_NAME");
+        std::string connection_url = fmt::format(
+            "user={} password={} host={} port={} dbname={} target_session_attrs=read-write",
+            db_user, db_password, db_host, db_port, db_name
+        );
+        return connection_url;
+    }
+    pqxx::connection connect_database_operations() {
+        pqxx::connection connection(get_url_connection());
+        return connection;
     }
 }
+

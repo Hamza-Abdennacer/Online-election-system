@@ -29,13 +29,18 @@ FetchContent_MakeAvailable(libpqxx)
 # Add the executable
 add_executable(OnlineVotingSystem ${SOURCES}
         include/crudOperations.h
-        src/DatabaseManagements/crudOperations.cpp)
+        src/DatabaseManagements/crudOperations.cpp
+        include/entities/User.cpp
+        include/entities/User.h)
 
 # Find PostgreSQL package
 find_package(PostgreSQL REQUIRED)
 
+# Find the fmt package
+find_package(fmt REQUIRED)
+
 # Link libraries
-target_link_libraries(OnlineVotingSystem PRIVATE pqxx pq ${PostgreSQL_LIBRARIES})
+target_link_libraries(OnlineVotingSystem PRIVATE pqxx pq ${PostgreSQL_LIBRARIES} fmt::fmt)
 
 # Ensure the PostgreSQL include directory is found
 include_directories(${PostgreSQL_INCLUDE_DIRS})
